@@ -1,0 +1,21 @@
+# Environments
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local data
+.env
+data/
+*.db
+
+# OS
+.DS_Store
+
+# Tooling
+.idea/
+.vscode/
+
+
+
