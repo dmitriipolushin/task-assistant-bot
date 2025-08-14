@@ -182,18 +182,14 @@ async def handle_priority_callback(update: Update, context: ContextTypes.DEFAULT
     # Try to store to Google Sheets if configured
     cap_note: str | None = None
     try:
-        from utils.gsheets import add_task_row, enforce_important_cap
+        from utils.gsheets import add_task_row, is_important_limit_exceeded
         LOGGER.info("Appending to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
         add_task_row(item["task_text"], priority)
-        # If selected priority is important, enforce cap of 10 via LIFO downgrade
+        # If selected priority is important, check cap of 10 and only notify
         if priority.lower() in {"critical", "blocker", "high"}:
-            downgraded = enforce_important_cap(10)
-            if downgraded:
-                row_idx, downgraded_title = downgraded
-                cap_note = f"Лимит 10 важн. задач превышен → понижена последняя: ‘{downgraded_title}’ (строка {row_idx})"
-                LOGGER.info("Important cap enforced: downgraded row=%s title='%s'", row_idx, downgraded_title)
-            else:
-                LOGGER.info("Important cap not triggered (<= 10)")
+            if is_important_limit_exceeded(10):
+                cap_note = "Превышен лимит срочных задач (Critical/Blocker/High > 10)"
+                LOGGER.info("Important cap exceeded; notifying in chat without modifying sheet")
     except Exception:
         LOGGER.exception("Failed to append to Google Sheets or enforce cap")
 

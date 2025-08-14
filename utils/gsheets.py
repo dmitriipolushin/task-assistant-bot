@@ -170,33 +170,27 @@ def add_task_row(
         ws.append_row([title, priority.capitalize(), datetime.utcnow().isoformat() + "Z"])
 
 
-def enforce_important_cap(max_count: int = 10) -> Tuple[int, str] | None:
-    """If count of important (Critical|Blocker|High) exceeds max_count,
-    downgrade the last (bottom-most) important task to Medium and return (row_index, title).
-    Returns None if no action was taken.
+def is_important_limit_exceeded(max_count: int = 10) -> bool:
+    """Return True if count of important (Critical|Blocker|High) exceeds max_count.
+
+    Does not modify the sheet.
     """
     ws = _open_worksheet()
-    LOGGER.info("Enforcing important cap=%s", max_count)
     values = ws.get_all_values()
     if not values:
-        return None
+        return False
     header_map = {name: idx for idx, name in enumerate(values[0], start=1)}
     prio_idx = header_map.get("Приоритет") or header_map.get("Priority")
-    title_idx = header_map.get("Задача") or header_map.get("Title") or 1
     if not prio_idx:
-        return None
+        return False
     important = {"CRITICAL", "BLOCKER", "HIGH"}
-    important_rows: List[Tuple[int, str]] = []
-    for idx, row in enumerate(values[1:], start=2):
+    count = 0
+    for row in values[1:]:
         pr = (row[prio_idx - 1] if len(row) >= prio_idx else "").strip().upper()
         if pr in important:
-            title = row[title_idx - 1] if len(row) >= title_idx else ""
-            important_rows.append((idx, title))
-    if len(important_rows) > max_count:
-        row_index, title = important_rows[-1]  # stack: LIFO -> last item
-        downgrade_row_to_medium(row_index)
-        return row_index, title
-    return None
+            count += 1
+    LOGGER.info("Important tasks count=%s (limit=%s)", count, max_count)
+    return count > max_count
 
 
 def delete_first_row_by_title(title: str) -> int:
