@@ -48,6 +48,17 @@ def initialize_database() -> None:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS pending_prioritization (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                task_text TEXT NOT NULL,
+                selected_priority TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS staff_members (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE,
@@ -62,6 +73,7 @@ def initialize_database() -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_raw_messages_is_processed ON raw_messages(is_processed);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_processed_tasks_chat_id ON processed_tasks(chat_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_processed_tasks_created_date ON processed_tasks(created_date);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pending_chat_id ON pending_prioritization(chat_id);")
 
         conn.commit()
         LOGGER.info("Database schema initialized")

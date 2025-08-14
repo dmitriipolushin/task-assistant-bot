@@ -62,6 +62,75 @@ def save_processed_task_batch(chat_id: int, task_text: str, source_message_ids: 
         return cur.lastrowid
 
 
+def enqueue_pending_prioritization(chat_id: int, task_text: str) -> int:
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO pending_prioritization (chat_id, task_text)
+            VALUES (?, ?)
+            """,
+            (chat_id, task_text),
+        )
+        return cur.lastrowid
+
+
+def set_pending_priority(item_id: int, priority: str) -> None:
+    with db_cursor() as cur:
+        cur.execute(
+            "UPDATE pending_prioritization SET selected_priority = ? WHERE id = ?",
+            (priority, item_id),
+        )
+
+
+def delete_pending(item_id: int) -> None:
+    with db_cursor() as cur:
+        cur.execute("DELETE FROM pending_prioritization WHERE id = ?", (item_id,))
+
+
+def get_pending_for_chat(chat_id: int) -> List[dict]:
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE chat_id = ? ORDER BY id ASC",
+            (chat_id,),
+        )
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_pending_by_id(item_id: int) -> Optional[dict]:
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE id = ?",
+            (item_id,),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def delete_processed_tasks_by_text(chat_id: int, task_text: str) -> int:
+    """Delete processed tasks that exactly match the given text for chat.
+
+    Returns number of deleted rows.
+    """
+    with db_cursor() as cur:
+        cur.execute(
+            "DELETE FROM processed_tasks WHERE chat_id = ? AND task_text = ?",
+            (chat_id, task_text),
+        )
+        return cur.rowcount
+
+
+def get_pending_for_chat(chat_id: int) -> List[dict]:
+    # duplicate stub removed; real implementation exists above
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE chat_id = ? ORDER BY id ASC",
+            (chat_id,),
+        )
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+
+
 def save_raw_message(
     chat_id: int,
     message_id: int,

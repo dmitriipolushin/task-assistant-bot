@@ -5,6 +5,7 @@ from typing import List, Sequence
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application
 
 from config.settings import SETTINGS
@@ -17,6 +18,7 @@ from database.operations import (
     get_unprocessed_messages_between,
     mark_messages_processed,
     save_processed_task_batch,
+    enqueue_pending_prioritization,
 )
 from utils.formatters import format_daily_report
 from .gpt_processor import process_messages_batch_with_gpt
@@ -80,6 +82,8 @@ async def process_chat_messages_now(application: Application, chat_id: int) -> i
         return 0
     for t in tasks:
         save_processed_task_batch(chat_id=chat_id, task_text=t, source_message_ids=[m["id"] for m in messages])
+        pending_id = enqueue_pending_prioritization(chat_id, t)
+        await _prompt_priority_selection(application, chat_id, pending_id, t)
     mark_messages_processed([m["id"] for m in messages])
     LOGGER.info("Chat %s: processed %s tasks from %s messages", chat_id, len(tasks), len(messages))
     return len(tasks)
@@ -108,6 +112,8 @@ async def process_chat_messages_range(application: Application, chat_id: int, si
         return 0, len(messages)
     for t in tasks:
         save_processed_task_batch(chat_id=chat_id, task_text=t, source_message_ids=[m["id"] for m in messages])
+        pending_id = enqueue_pending_prioritization(chat_id, t)
+        await _prompt_priority_selection(application, chat_id, pending_id, t)
     mark_messages_processed([m["id"] for m in messages])
     LOGGER.info(
         "Chat %s: processed %s tasks from %s messages (range %s - %s)",
@@ -118,6 +124,19 @@ async def process_chat_messages_range(application: Application, chat_id: int, si
         until_utc.isoformat(),
     )
     return len(tasks), len(messages)
+
+
+async def _prompt_priority_selection(application: Application, chat_id: int, pending_id: int, task_text: str) -> None:
+    kb = [
+        [InlineKeyboardButton("Critical", callback_data=f"prio:{pending_id}:critical"), InlineKeyboardButton("Blocker", callback_data=f"prio:{pending_id}:blocker")],
+        [InlineKeyboardButton("High", callback_data=f"prio:{pending_id}:high"), InlineKeyboardButton("Medium", callback_data=f"prio:{pending_id}:medium"), InlineKeyboardButton("Low", callback_data=f"prio:{pending_id}:low")],
+        [InlineKeyboardButton("Удалить", callback_data=f"del:{pending_id}")],
+    ]
+    await application.bot.send_message(
+        chat_id=chat_id,
+        text=f"Новая задача:\n{task_text}\nВыберите приоритет:",
+        reply_markup=InlineKeyboardMarkup(kb),
+    )
 
 
 async def send_daily_report(application: Application) -> None:

@@ -1,8 +1,8 @@
 import logging
 
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 
-from bot.handlers import handle_message, handle_process_now_command, handle_tasks_command, handle_parse_command
+from bot.handlers import handle_message, handle_process_now_command, handle_tasks_command, handle_parse_command, handle_priority_callback, handle_downgrade_callback, handle_prioritize_command, handle_delete_task_callback
 from bot.scheduler import setup_schedulers
 from config.settings import SETTINGS
 from database.models import initialize_database
@@ -37,6 +37,10 @@ def main() -> None:
     application.add_handler(CommandHandler("tasks", handle_tasks_command))
     application.add_handler(CommandHandler("process_now", handle_process_now_command))
     application.add_handler(CommandHandler("parse", handle_parse_command))
+    application.add_handler(CommandHandler("prioritize", handle_prioritize_command))
+    application.add_handler(CallbackQueryHandler(handle_priority_callback, pattern=r"^prio:"))
+    application.add_handler(CallbackQueryHandler(handle_downgrade_callback, pattern=r"^down:"))
+    application.add_handler(CallbackQueryHandler(handle_delete_task_callback, pattern=r"^del:"))
     application.add_error_handler(on_error)
 
     setup_schedulers(application)
