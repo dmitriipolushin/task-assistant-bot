@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 class Settings:
     bot_token: str
     openai_api_key: str
+    openai_base_url: str
     gpt_model: str
     timezone: str
     daily_report_time: str
@@ -23,6 +24,7 @@ def load_settings() -> Settings:
 
     bot_token = os.getenv("BOT_TOKEN")
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    openai_base_url = os.getenv("OPENAI_BASE_URL", "https://llm.swe.along.pw")
     gpt_model = os.getenv("GPT_MODEL")
     timezone = os.getenv("TIMEZONE", "Europe/Moscow")
     daily_report_time = os.getenv("DAILY_REPORT_TIME", "09:00")
@@ -48,6 +50,7 @@ def load_settings() -> Settings:
     return Settings(
         bot_token=bot_token,
         openai_api_key=openai_api_key,
+        openai_base_url=openai_base_url,
         gpt_model=gpt_model,
         timezone=timezone,
         daily_report_time=daily_report_time,
