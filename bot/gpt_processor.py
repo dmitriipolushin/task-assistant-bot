@@ -45,7 +45,7 @@ def _parse_tasks_from_output(text: str) -> List[str]:
 
 
 def _create_openai_client() -> OpenAI:
-    return OpenAI(api_key=SETTINGS.openai_api_key, base_url=SETTINGS.openai_base_url)
+    return OpenAI(api_key=SETTINGS.openai_api_key)
 
 
 async def process_messages_batch_with_gpt(messages_list: Sequence[dict], timeout_seconds: int = 60) -> List[str]:

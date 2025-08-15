@@ -16,6 +16,7 @@ class Settings:
     database_path: str
     gsheet_spreadsheet_id: str | None
     gsheet_worksheet_name: str | None
+    gsheet_tasks_worksheet_name: str | None
     google_service_account_json_path: str | None
 
 
@@ -31,6 +32,7 @@ def load_settings() -> Settings:
     database_path = os.getenv("DATABASE_PATH", os.path.join(".", "data", "bot.db"))
     gsheet_spreadsheet_id = os.getenv("GSHEET_SPREADSHEET_ID")
     gsheet_worksheet_name = os.getenv("GSHEET_WORKSHEET_NAME", "Tasks")
+    gsheet_tasks_worksheet_name = os.getenv("GSHEET_TASKS_WORKSHEET_NAME", "Tasks")
     google_service_account_json_path = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_PATH")
 
     missing = []
@@ -57,6 +59,7 @@ def load_settings() -> Settings:
         database_path=database_path,
         gsheet_spreadsheet_id=gsheet_spreadsheet_id,
         gsheet_worksheet_name=gsheet_worksheet_name,
+        gsheet_tasks_worksheet_name=gsheet_tasks_worksheet_name,
         google_service_account_json_path=google_service_account_json_path,
     )
 

@@ -12,8 +12,8 @@ from config.settings import SETTINGS
 LOGGER = logging.getLogger(__name__)
 
 
-RUS_HEADERS = ["Проект", "Задача", "Статус", "Ссылка", "Приоритет", "Тип", "Plan"]
-ENG_HEADERS = ["Title", "Priority", "CreatedAt"]
+RUS_HEADERS = ["Проект", "Описание", "Приоритет"]
+ENG_HEADERS = ["Project", "Description", "Priority"]
 
 
 def _open_worksheet():
@@ -65,6 +65,56 @@ def _open_worksheet():
     return ws
 
 
+def _open_tasks_worksheet():
+    """Open the tasks worksheet specifically for task entries."""
+    if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
+        raise RuntimeError("Google Sheets is not configured. Set GOOGLE_SERVICE_ACCOUNT_JSON_PATH and GSHEET_SPREADSHEET_ID in .env")
+    LOGGER.info("Opening Google Sheet id=%s for tasks", SETTINGS.gsheet_spreadsheet_id)
+    # Build client from file path or from JSON string
+    creds_path_or_json = SETTINGS.google_service_account_json_path
+    gc = None
+    try:
+        required_fields = {"type", "project_id", "private_key_id", "private_key", "client_email", "client_id", "auth_uri", "token_uri"}
+        if os.path.isfile(creds_path_or_json):
+            # Validate JSON file has required fields (without logging secrets)
+            try:
+                with open(creds_path_or_json, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                missing = [k for k in required_fields if k not in data]
+                if missing:
+                    raise RuntimeError(f"Service account JSON missing required fields: {', '.join(missing)}")
+            except Exception as exc:
+                LOGGER.error("Failed to read or validate service account file: %s", exc)
+                raise
+            gc = gspread.service_account(filename=creds_path_or_json)
+        else:
+            # Try to parse as inline JSON (env may store JSON content)
+            try:
+                data = json.loads(creds_path_or_json)
+                missing = [k for k in required_fields if k not in data]
+                if missing:
+                    raise RuntimeError(f"Inline service account JSON missing required fields: {', '.join(missing)}")
+                LOGGER.info("Using inline JSON credentials from GOOGLE_SERVICE_ACCOUNT_JSON_PATH env")
+                gc = gspread.service_account_from_dict(data)
+            except Exception as exc:
+                LOGGER.error("GOOGLE_SERVICE_ACCOUNT_JSON_PATH is neither a file nor valid JSON: %s", exc)
+                raise
+    except Exception:
+        # Re-raise to caller; caller logs stacktrace
+        raise
+    sh = gc.open_by_key(SETTINGS.gsheet_spreadsheet_id)
+    ws_name = SETTINGS.gsheet_tasks_worksheet_name or "Tasks"
+    try:
+        ws = sh.worksheet(ws_name)
+        LOGGER.info("Using tasks worksheet '%s'", ws_name)
+    except gspread.WorksheetNotFound:
+        LOGGER.info("Tasks worksheet '%s' not found. Creating with default headers", ws_name)
+        ws = sh.add_worksheet(title=ws_name, rows=1000, cols=10)
+        # Initialize with Russian headers per spec
+        ws.append_row(RUS_HEADERS)
+    return ws
+
+
 def _get_header_map(ws) -> Dict[str, int]:
     """Return {header_name: 1-based index} for the first row.
 
@@ -78,8 +128,8 @@ def _get_header_map(ws) -> Dict[str, int]:
 
 
 def read_all_tasks() -> List[dict]:
-    ws = _open_worksheet()
-    LOGGER.info("Reading all tasks from worksheet")
+    ws = _open_tasks_worksheet()
+    LOGGER.info("Reading all tasks from tasks worksheet")
     records = ws.get_all_records()
     return records
 
@@ -88,7 +138,7 @@ def count_important(tasks: List[dict]) -> int:
     important = {"HIGH", "BLOCKER", "CRITICAL"}
     count = 0
     for t in tasks:
-        # Prefer Russian header, fallback to English
+        # Use new format: Проект, Описание, Приоритет
         pr = str(t.get("Приоритет", t.get("Priority", ""))).strip().upper()
         if pr in important:
             count += 1
@@ -96,33 +146,33 @@ def count_important(tasks: List[dict]) -> int:
 
 
 def list_high_tasks_with_rows() -> List[Tuple[int, str]]:
-    ws = _open_worksheet()
+    ws = _open_tasks_worksheet()
     LOGGER.info("Listing High tasks with row indices")
     values = ws.get_all_values()
     if not values:
         return []
     header_map = {name: idx for idx, name in enumerate(values[0], start=1)}
     prio_idx = header_map.get("Приоритет") or header_map.get("Priority")
-    title_idx = header_map.get("Задача") or header_map.get("Title") or 1
+    desc_idx = header_map.get("Описание") or header_map.get("Description") or 2
     if not prio_idx:
         return []
     result: List[Tuple[int, str]] = []
     for idx, row in enumerate(values[1:], start=2):
         pr = (row[prio_idx - 1] if len(row) >= prio_idx else "").strip().upper()
         if pr == "HIGH":
-            title = row[title_idx - 1] if len(row) >= title_idx else ""
-            result.append((idx, title))
+            description = row[desc_idx - 1] if len(row) >= desc_idx else ""
+            result.append((idx, description))
     return result
 
 
 def downgrade_row_to_medium(row_index: int) -> None:
-    ws = _open_worksheet()
+    ws = _open_tasks_worksheet()
     LOGGER.info("Downgrading row %s to Medium", row_index)
     header_map = _get_header_map(ws)
     prio_idx = header_map.get("Приоритет") or header_map.get("Priority")
     if not prio_idx:
-        # Fallback to column 2
-        prio_idx = 2
+        # Fallback to column 3 (Приоритет)
+        prio_idx = 3
     ws.update_cell(row_index, prio_idx, "Medium")
 
 
@@ -135,39 +185,21 @@ def add_task_row(
     task_type: str | None = None,
     plan: str | None = None,
 ) -> None:
-    """Append a new task row.
+    """Append a new task row to the tasks worksheet.
 
-    Adapts to the worksheet header:
-    - If Russian spec is present, fills: Проект, Задача, Статус, Ссылка, Приоритет, Тип, Plan
-    - Else falls back to minimal English header: Title, Priority, CreatedAt
+    New format: Проект (Calzen), Описание, Приоритет
     """
-    ws = _open_worksheet()
-    header_map = _get_header_map(ws)
-
-    # Detect Russian schema
-    if header_map.get("Задача") and (header_map.get("Приоритет") or header_map.get("Priority")):
-        values = [
-            project or "",
-            title,
-            status or "ToDo",
-            link or "",
-            priority.capitalize(),
-            task_type or "",
-            plan or "Unplanned",
-        ]
-        # Reorder according to actual header order if needed
-        ordered: List[str] = []
-        for header in ["Проект", "Задача", "Статус", "Ссылка", "Приоритет", "Тип", "Plan"]:
-            if header in ("Проект", "Задача", "Статус", "Ссылка", "Приоритет", "Тип", "Plan"):
-                # Map to our values by fixed position
-                idx = ["Проект", "Задача", "Статус", "Ссылка", "Приоритет", "Тип", "Plan"].index(header)
-                ordered.append(values[idx])
-        LOGGER.info("Appending Russian-schema row: title='%s' priority='%s'", title, priority)
-        ws.append_row(ordered)
-    else:
-        # Minimal header fallback
-        LOGGER.info("Appending minimal row: title='%s' priority='%s'", title, priority)
-        ws.append_row([title, priority.capitalize(), datetime.utcnow().isoformat() + "Z"])
+    ws = _open_tasks_worksheet()
+    
+    # Always use Calzen as project, new format: Проект, Описание, Приоритет
+    values = [
+        "Calzen",  # Проект
+        title,     # Описание
+        priority.capitalize(),  # Приоритет
+    ]
+    
+    LOGGER.info("Appending task row: project='Calzen' description='%s' priority='%s'", title, priority)
+    ws.append_row(values)
 
 
 def is_important_limit_exceeded(max_count: int = 10) -> bool:
@@ -175,7 +207,7 @@ def is_important_limit_exceeded(max_count: int = 10) -> bool:
 
     Does not modify the sheet.
     """
-    ws = _open_worksheet()
+    ws = _open_tasks_worksheet()
     values = ws.get_all_values()
     if not values:
         return False
@@ -194,24 +226,24 @@ def is_important_limit_exceeded(max_count: int = 10) -> bool:
 
 
 def delete_first_row_by_title(title: str) -> int:
-    """Delete the first row after header where title matches exactly (by 'Задача' or 'Title').
+    """Delete the first row after header where description matches exactly (by 'Описание' or 'Description').
 
     Returns deleted row index, or 0 if not found.
     """
-    ws = _open_worksheet()
-    LOGGER.info("Deleting first row by title='%s'", title)
+    ws = _open_tasks_worksheet()
+    LOGGER.info("Deleting first row by description='%s'", title)
     values = ws.get_all_values()
     if not values:
         return 0
     header_map = {name: idx for idx, name in enumerate(values[0], start=1)}
-    title_idx = header_map.get("Задача") or header_map.get("Title") or 1
+    desc_idx = header_map.get("Описание") or header_map.get("Description") or 2
     for idx, row in enumerate(values[1:], start=2):
-        cell_title = row[title_idx - 1] if len(row) >= title_idx else ""
-        if cell_title == title:
+        cell_desc = row[desc_idx - 1] if len(row) >= desc_idx else ""
+        if cell_desc == title:
             ws.delete_rows(idx)
-            LOGGER.info("Deleted worksheet row %s for title match", idx)
+            LOGGER.info("Deleted worksheet row %s for description match", idx)
             return idx
-    LOGGER.info("No worksheet row found for title match")
+    LOGGER.info("No worksheet row found for description match")
     return 0
 
 
