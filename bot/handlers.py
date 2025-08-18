@@ -173,6 +173,32 @@ async def handle_priority_callback(update: Update, context: ContextTypes.DEFAULT
             pass
         return
 
+    # Проверка лимита срочных задач для Critical/Blocker/High
+    if priority.lower() in {"critical", "blocker", "high"}:
+        try:
+            from utils.gsheets import get_high_priority_tasks, format_tasks_message, is_high_priority_limit_exceeded
+            if is_high_priority_limit_exceeded():
+                # Превышен лимит - показываем сообщение с выбором действий
+                existing_tasks, _ = get_high_priority_tasks()
+                message_text = format_tasks_message(existing_tasks, item["task_text"])
+                
+                # Новые кнопки для выбора действия
+                kb = [
+                    [InlineKeyboardButton("Medium", callback_data=f"downgrade:{pending_id}:medium")],
+                    [InlineKeyboardButton("Low", callback_data=f"downgrade:{pending_id}:low")],
+                    [InlineKeyboardButton("Оставить высокий", callback_data=f"keep_high:{pending_id}")],
+                ]
+                
+                await query.edit_message_text(
+                    text=message_text,
+                    reply_markup=InlineKeyboardMarkup(kb)
+                )
+                LOGGER.info("High priority limit exceeded for pending_id=%s, showing downgrade options", pending_id)
+                return
+        except Exception:
+            LOGGER.exception("Failed to check high priority limit for pending_id=%s", pending_id)
+            # При ошибке продолжаем как обычно
+
     try:
         LOGGER.info("Setting priority for pending_id=%s to %s", pending_id, priority)
         set_pending_priority(pending_id, priority)
@@ -224,6 +250,97 @@ async def handle_downgrade_callback(update: Update, context: ContextTypes.DEFAUL
     if user is None:
         return
     LOGGER.info("Downgrade callback received from user_id=%s username=%s data=%s", getattr(user, "id", None), getattr(user, "username", None), getattr(query, "data", None))
+
+    data = query.data or ""
+    try:
+        prefix, pending_id_str, priority = data.split(":", 2)
+        if prefix != "downgrade":
+            return
+        pending_id = int(pending_id_str)
+        if priority not in {"medium", "low"}:
+            return
+    except Exception:
+        return
+
+    item = get_pending_by_id(pending_id)
+    if not item:
+        try:
+            await query.edit_message_reply_markup(None)
+        except Exception:
+            pass
+        return
+
+    try:
+        LOGGER.info("Setting downgraded priority for pending_id=%s to %s", pending_id, priority)
+        set_pending_priority(pending_id, priority)
+    except Exception:
+        LOGGER.exception("Failed to set pending priority pending_id=%s", pending_id)
+
+    # Добавляем задачу в Google Sheets с пониженным приоритетом
+    try:
+        from utils.gsheets import add_task_row
+        LOGGER.info("Appending downgraded task to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
+        add_task_row(item["task_text"], priority)
+    except Exception:
+        LOGGER.exception("Failed to append downgraded task to Google Sheets")
+
+    try:
+        LOGGER.info("Deleting pending record id=%s", pending_id)
+        delete_pending(pending_id)
+    except Exception:
+        LOGGER.exception("Failed to delete pending record id=%s", pending_id)
+
+    # Обновляем сообщение
+    try:
+        original_text = query.message.text if query.message and query.message.text else "Новая задача"
+        new_text = f"{original_text}\n\nВыбран пониженный приоритет: {priority.capitalize()}"
+        await query.edit_message_text(text=new_text)
+        LOGGER.info("Edited message to confirm downgraded priority for pending_id=%s", pending_id)
+    except Exception:
+        try:
+            await query.edit_message_reply_markup(None)
+        except Exception:
+            pass
+
+
+async def handle_keep_high_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
+
+    user = update.effective_user
+    if user is None:
+        return
+    LOGGER.info("Keep high callback received from user_id=%s username=%s data=%s", getattr(user, "id", None), getattr(user, "username", None), getattr(query, "data", None))
+
+    data = query.data or ""
+    try:
+        prefix, pending_id_str = data.split(":", 1)
+        if prefix != "keep_high":
+            return
+        pending_id = int(pending_id_str)
+    except Exception:
+        return
+
+    item = get_pending_by_id(pending_id)
+    if not item:
+        try:
+            await query.edit_message_reply_markup(None)
+        except Exception:
+            pass
+        return
+
+    # Отправляем сообщение о необходимости определить задачу для понижения
+    try:
+        message_text = "Необходимо определить задачу, приоритет которой будет понижен"
+        await query.edit_message_text(text=message_text)
+        LOGGER.info("Kept high priority task pending_id=%s, waiting for priority downgrade decision", pending_id)
+    except Exception:
+        try:
+            await query.edit_message_reply_markup(None)
+        except Exception:
+            pass
 
 
 async def handle_delete_task_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -247,4 +247,130 @@ def delete_first_row_by_title(title: str) -> int:
     return 0
 
 
+# Константы для лимита срочных задач
+HIGH_PRIORITY_LIMIT = 5
+MANAGER_USERNAME = "@pakhandrin"
+
+def get_high_priority_tasks() -> Tuple[List[dict], int]:
+    """
+    Получает список срочных задач из двух листов Google Sheets.
+    
+    Returns:
+        Tuple[List[dict], int]: (список задач, общее количество)
+    """
+    try:
+        tasks = []
+        
+        # Основной лист - столбец C (статус), столбец D (приоритет)
+        try:
+            main_ws = _open_worksheet()
+            values = main_ws.get_all_values()
+            if len(values) > 1:  # Есть заголовки и данные
+                headers = [h.strip() for h in values[0]]
+                status_col = 2  # Столбец C (индекс 2)
+                priority_col = 3  # Столбец D (индекс 3)
+                
+                # Активные статусы разработки
+                active_statuses = {"ToDo", "Analytics", "Design", "Ready for Dev", "Development", "Testing", "Review"}
+                
+                for row_idx, row in enumerate(values[1:], start=2):
+                    if len(row) > max(status_col, priority_col):
+                        status = row[status_col].strip()
+                        priority = row[priority_col].strip().upper()
+                        
+                        if (status in active_statuses and 
+                            priority in {"CRITICAL", "BLOCKER", "HIGH"}):
+                            tasks.append({
+                                "priority": priority,
+                                "description": row[1] if len(row) > 1 else "Описание недоступно",
+                                "status": status,
+                                "sheet": "main",
+                                "row": row_idx
+                            })
+        except Exception as exc:
+            LOGGER.warning("Failed to read main worksheet: %s", exc)
+        
+        # Лист задач - все задачи с высоким приоритетом
+        try:
+            tasks_ws = _open_tasks_worksheet()
+            values = tasks_ws.get_all_values()
+            if len(values) > 1:
+                headers = [h.strip() for h in values[0]]
+                # Ищем столбец с приоритетом
+                priority_col = None
+                for idx, header in enumerate(headers):
+                    if header in ["Приоритет", "Priority"]:
+                        priority_col = idx
+                        break
+                
+                if priority_col is not None:
+                    for row_idx, row in enumerate(values[1:], start=2):
+                        if len(row) > priority_col:
+                            priority = row[priority_col].strip().upper()
+                            if priority in {"CRITICAL", "BLOCKER", "HIGH"}:
+                                description = row[1] if len(row) > 1 else "Описание недоступно"
+                                tasks.append({
+                                    "priority": priority,
+                                    "description": description,
+                                    "status": "N/A",
+                                    "sheet": "tasks",
+                                    "row": row_idx
+                                })
+        except Exception as exc:
+            LOGGER.warning("Failed to read tasks worksheet: %s", exc)
+        
+        LOGGER.info("Found %s high priority tasks", len(tasks))
+        return tasks, len(tasks)
+        
+    except Exception as exc:
+        LOGGER.exception("Failed to get high priority tasks: %s", exc)
+        return [], 0
+
+
+def format_tasks_message(existing_tasks: List[dict], new_task_description: str) -> str:
+    """
+    Формирует сообщение о превышении лимита срочных задач.
+    
+    Args:
+        existing_tasks: Список существующих срочных задач
+        new_task_description: Описание новой задачи
+        
+    Returns:
+        str: Отформатированное сообщение
+    """
+    message = f"{MANAGER_USERNAME} Превышено максимум задач в работе!\n\n"
+    
+    if existing_tasks:
+        message += "Текущие срочные задачи:\n"
+        for task in existing_tasks:
+            priority = task.get("priority", "Unknown")
+            description = task.get("description", "Описание недоступно")
+            status = task.get("status", "N/A")
+            if status != "N/A":
+                message += f"- [{priority}] {description} ({status})\n"
+            else:
+                message += f"- [{priority}] {description}\n"
+        message += "\n"
+    
+    message += f"Новая задача:\n- {new_task_description}\n\n"
+    message += "Что делаем: бросаем старые задачи и идем делать новую или оставляем старые и понижаем приоритет новой?"
+    
+    return message
+
+
+def is_high_priority_limit_exceeded() -> bool:
+    """
+    Проверяет, превышен ли лимит срочных задач.
+    
+    Returns:
+        bool: True если лимит превышен (>= 5), False иначе
+    """
+    try:
+        _, count = get_high_priority_tasks()
+        return count >= HIGH_PRIORITY_LIMIT
+    except Exception as exc:
+        LOGGER.exception("Failed to check high priority limit: %s", exc)
+        return False  # Разрешаем добавление при ошибках
+
+
 
