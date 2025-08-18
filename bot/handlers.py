@@ -222,6 +222,22 @@ async def handle_priority_callback(update: Update, context: ContextTypes.DEFAULT
     try:
         LOGGER.info("Deleting pending record id=%s", pending_id)
         delete_pending(pending_id)
+        
+        # Помечаем исходные сообщения как обработанные ПОСЛЕ выбора приоритета
+        try:
+            from database.operations import mark_messages_processed
+            # Получаем source_message_ids из processed_tasks
+            from database.operations import get_processed_task_by_text
+            task_info = get_processed_task_by_text(item["chat_id"], item["task_text"])
+            if task_info and task_info.get("source_messages"):
+                import json
+                source_ids = json.loads(task_info["source_messages"])
+                if source_ids:
+                    mark_messages_processed(source_ids)
+                    LOGGER.info("Marked %s source messages as processed for task %s", len(source_ids), pending_id)
+        except Exception:
+            LOGGER.exception("Failed to mark source messages as processed for pending_id=%s", pending_id)
+        
     except Exception:
         LOGGER.exception("Failed to delete pending record id=%s", pending_id)
 
@@ -287,6 +303,22 @@ async def handle_downgrade_callback(update: Update, context: ContextTypes.DEFAUL
     try:
         LOGGER.info("Deleting pending record id=%s", pending_id)
         delete_pending(pending_id)
+        
+        # Помечаем исходные сообщения как обработанные ПОСЛЕ выбора приоритета
+        try:
+            from database.operations import mark_messages_processed
+            # Получаем source_message_ids из processed_tasks
+            from database.operations import get_processed_task_by_text
+            task_info = get_processed_task_by_text(chat_id, item["task_text"])
+            if task_info and task_info.get("source_messages"):
+                import json
+                source_ids = json.loads(task_info["source_messages"])
+                if source_ids:
+                    mark_messages_processed(source_ids)
+                    LOGGER.info("Marked %s source messages as processed for downgraded task %s", len(source_ids), pending_id)
+        except Exception:
+            LOGGER.exception("Failed to mark source messages as processed for downgraded task %s", pending_id)
+        
     except Exception:
         LOGGER.exception("Failed to delete pending record id=%s", pending_id)
 

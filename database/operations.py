@@ -107,6 +107,20 @@ def get_pending_by_id(item_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
+def get_processed_task_by_text(chat_id: int, task_text: str) -> Optional[dict]:
+    """Get processed task that exactly matches the given text for chat.
+
+    Returns task dict or None if not found.
+    """
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT id, chat_id, task_text, source_messages, processing_timestamp, created_date FROM processed_tasks WHERE chat_id = ? AND task_text = ? ORDER BY processing_timestamp DESC LIMIT 1",
+            (chat_id, task_text),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
 def delete_processed_tasks_by_text(chat_id: int, task_text: str) -> int:
     """Delete processed tasks that exactly match the given text for chat.
 

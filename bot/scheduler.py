@@ -80,12 +80,15 @@ async def process_chat_messages_now(application: Application, chat_id: int) -> i
     except Exception:
         LOGGER.exception("GPT processing failed for chat %s", chat_id)
         return 0
+    
+    # Сохраняем задачи и ставим в очередь приоритизации
+    # НЕ помечаем сообщения как обработанные - это произойдет только после выбора приоритета
     for t in tasks:
         save_processed_task_batch(chat_id=chat_id, task_text=t, source_message_ids=[m["id"] for m in messages])
         pending_id = enqueue_pending_prioritization(chat_id, t)
         await _prompt_priority_selection(application, chat_id, pending_id, t)
-    mark_messages_processed([m["id"] for m in messages])
-    LOGGER.info("Chat %s: processed %s tasks from %s messages", chat_id, len(tasks), len(messages))
+    
+    LOGGER.info("Chat %s: queued %s tasks for prioritization from %s messages", chat_id, len(tasks), len(messages))
     return len(tasks)
 
 
@@ -110,13 +113,16 @@ async def process_chat_messages_range(application: Application, chat_id: int, si
     except Exception:
         LOGGER.exception("GPT processing failed for chat %s in range", chat_id)
         return 0, len(messages)
+    
+    # Сохраняем задачи и ставим в очередь приоритизации
+    # НЕ помечаем сообщения как обработанные - это произойдет только после выбора приоритета
     for t in tasks:
         save_processed_task_batch(chat_id=chat_id, task_text=t, source_message_ids=[m["id"] for m in messages])
         pending_id = enqueue_pending_prioritization(chat_id, t)
         await _prompt_priority_selection(application, chat_id, pending_id, t)
-    mark_messages_processed([m["id"] for m in messages])
+    
     LOGGER.info(
-        "Chat %s: processed %s tasks from %s messages (range %s - %s)",
+        "Chat %s: queued %s tasks for prioritization from %s messages (range %s - %s)",
         chat_id,
         len(tasks),
         len(messages),
