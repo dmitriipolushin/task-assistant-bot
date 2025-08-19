@@ -136,6 +136,7 @@ async def _prompt_priority_selection(application: Application, chat_id: int, pen
     kb = [
         [InlineKeyboardButton("Critical", callback_data=f"prio:{pending_id}:critical"), InlineKeyboardButton("Blocker", callback_data=f"prio:{pending_id}:blocker")],
         [InlineKeyboardButton("High", callback_data=f"prio:{pending_id}:high"), InlineKeyboardButton("Medium", callback_data=f"prio:{pending_id}:medium"), InlineKeyboardButton("Low", callback_data=f"prio:{pending_id}:low")],
+        [InlineKeyboardButton("Редактировать", callback_data=f"edit:{pending_id}")],
         [InlineKeyboardButton("Удалить", callback_data=f"del:{pending_id}")],
     ]
     await application.bot.send_message(

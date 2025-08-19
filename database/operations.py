@@ -82,6 +82,15 @@ def set_pending_priority(item_id: int, priority: str) -> None:
         )
 
 
+def update_pending_task_text(item_id: int, new_task_text: str) -> None:
+    """Update the task text for a pending prioritization item."""
+    with db_cursor() as cur:
+        cur.execute(
+            "UPDATE pending_prioritization SET task_text = ? WHERE id = ?",
+            (new_task_text, item_id),
+        )
+
+
 def delete_pending(item_id: int) -> None:
     with db_cursor() as cur:
         cur.execute("DELETE FROM pending_prioritization WHERE id = ?", (item_id,))

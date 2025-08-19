@@ -195,6 +195,11 @@ def enqueue_pending_prioritization(chat_id: int, task_text: str) -> int
 def set_pending_priority(item_id: int, priority: str) -> None
 ```
 
+#### Обновление текста задачи
+```python
+def update_pending_task_text(item_id: int, new_task_text: str) -> None
+```
+
 #### Получение задач, ожидающих приоритизации
 ```python
 def get_pending_for_chat(chat_id: int) -> List[dict]
@@ -203,6 +208,11 @@ def get_pending_for_chat(chat_id: int) -> List[dict]
 #### Получение задачи по ID
 ```python
 def get_pending_by_id(item_id: int) -> Optional[dict]
+```
+
+#### Получение обработанной задачи по тексту
+```python
+def get_processed_task_by_text(chat_id: int, task_text: str) -> Optional[dict]
 ```
 
 #### Удаление задачи из очереди
@@ -304,6 +314,11 @@ except Exception as exc:
 - **Составные индексы** для часто используемых комбинаций полей
 - **Индексы по времени** для быстрого поиска по диапазонам
 - **Индексы по статусу** для фильтрации обработанных/необработанных сообщений
+
+### 7.4 Логика обработки сообщений
+- **Сообщения помечаются как обработанные только ПОСЛЕ выбора приоритета**
+- **Команда `/parse` игнорирует статус `is_processed` для повторной обработки**
+- **Задачи остаются в очереди приоритизации до выбора приоритета**
 
 ### 7.2 Запросы
 - **Пакетные операции** для массовых обновлений

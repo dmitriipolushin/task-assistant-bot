@@ -39,6 +39,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         LOGGER.debug("Ignoring staff message from user_id=%s username=%s", user_id, username)
         return
 
+    # Проверяем, находится ли пользователь в режиме редактирования задачи
+    if context.user_data.get('editing_task_id') and context.user_data.get('editing_chat_id') == chat.id:
+        try:
+            from database.operations import update_pending_task_text
+            from .scheduler import _prompt_priority_selection
+            
+            editing_task_id = context.user_data['editing_task_id']
+            new_task_text = message.text
+            
+            # Обновляем текст задачи в базе
+            update_pending_task_text(editing_task_id, new_task_text)
+            LOGGER.info("Updated task text for pending_id=%s to: %s", editing_task_id, new_task_text)
+            
+            # Очищаем контекст редактирования
+            del context.user_data['editing_task_id']
+            del context.user_data['editing_chat_id']
+            
+            # Отправляем новое сообщение с выбором приоритета
+            await _prompt_priority_selection(context.application, chat.id, editing_task_id, new_task_text)
+            
+            # Удаляем исходное сообщение с просьбой редактирования
+            try:
+                await context.bot.delete_message(chat_id=chat.id, message_id=message.message_id)
+            except Exception:
+                pass  # Игнорируем ошибки удаления
+                
+            return  # Не сохраняем сообщение редактирования как обычное
+        except Exception:
+            LOGGER.exception("Failed to handle task editing for pending_id=%s", editing_task_id)
+            # Очищаем контекст при ошибке
+            context.user_data.pop('editing_task_id', None)
+            context.user_data.pop('editing_chat_id', None)
+
     try:
         save_raw_message(
             chat_id=chat.id,
@@ -335,6 +368,50 @@ async def handle_downgrade_callback(update: Update, context: ContextTypes.DEFAUL
             pass
 
 
+async def handle_edit_task_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
+
+    user = update.effective_user
+    if user is None:
+        return
+    LOGGER.info("Edit task callback received from user_id=%s username=%s data=%s", getattr(user, "id", None), getattr(user, "username", None), getattr(query, "data", None))
+
+    data = query.data or ""
+    try:
+        prefix, pending_id_str = data.split(":", 1)
+        if prefix != "edit":
+            return
+        pending_id = int(pending_id_str)
+    except Exception:
+        return
+
+    item = get_pending_by_id(pending_id)
+    if not item:
+        try:
+            await query.edit_message_reply_markup(None)
+        except Exception:
+            pass
+        return
+
+    # Сохраняем pending_id в контексте для следующего сообщения
+    context.user_data['editing_task_id'] = pending_id
+    context.user_data['editing_chat_id'] = item['chat_id']
+
+    # Отправляем сообщение с просьбой написать новую формулировку
+    try:
+        message_text = "Напишите правильную формулировку задачи"
+        await query.edit_message_text(text=message_text)
+        LOGGER.info("Edit task mode activated for pending_id=%s, waiting for new text", pending_id)
+    except Exception:
+        try:
+            await query.edit_message_reply_markup(None)
+        except Exception:
+            pass
+
+
 async def handle_keep_high_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if query is None:
@@ -449,6 +526,7 @@ async def handle_prioritize_command(update: Update, context: ContextTypes.DEFAUL
             kb = [
                 [InlineKeyboardButton("Critical", callback_data=f"prio:{it['id']}:critical"), InlineKeyboardButton("Blocker", callback_data=f"prio:{it['id']}:blocker")],
                 [InlineKeyboardButton("High", callback_data=f"prio:{it['id']}:high"), InlineKeyboardButton("Medium", callback_data=f"prio:{it['id']}:medium"), InlineKeyboardButton("Low", callback_data=f"prio:{it['id']}:low")],
+                [InlineKeyboardButton("Редактировать", callback_data=f"edit:{it['id']}")],
                 [InlineKeyboardButton("Удалить", callback_data=f"del:{it['id']}")],
             ]
             await context.bot.send_message(
