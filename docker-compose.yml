@@ -10,9 +10,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TIMEZONE=Europe/Moscow
       - DAILY_REPORT_TIME=09:00
-      - DATABASE_PATH=./data/bot.db
+      - DATABASE_PATH=/data/bot.db
     volumes:
-      - tasktracker_data:./data
+      - tasktracker_data:/data
     env_file:
       - .env
 
