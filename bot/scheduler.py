@@ -2,6 +2,8 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application
 
@@ -13,7 +15,7 @@ from database.operations import (
     save_processed_task_batch,
     enqueue_pending_prioritization,
 )
-from utils.gpt_processor import process_messages_batch_with_gpt
+from .gpt_processor import process_messages_batch_with_gpt
 
 
 LOGGER = logging.getLogger(__name__)
