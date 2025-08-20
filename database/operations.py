@@ -43,11 +43,13 @@ def save_task(
         cur.execute(
             """
             INSERT INTO processed_tasks (chat_id, task_text, source_messages)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
+            RETURNING id
             """,
             (chat_id, processed_task, source_messages),
         )
-        return cur.lastrowid
+        result = cur.fetchone()
+        return result['id'] if result else None
 
 
 def save_processed_task_batch(chat_id: int, task_text: str, source_message_ids: Sequence[int]) -> int:
@@ -55,11 +57,13 @@ def save_processed_task_batch(chat_id: int, task_text: str, source_message_ids: 
         cur.execute(
             """
             INSERT INTO processed_tasks (chat_id, task_text, source_messages)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
+            RETURNING id
             """,
             (chat_id, task_text, json.dumps(list(source_message_ids))),
         )
-        return cur.lastrowid
+        result = cur.fetchone()
+        return result['id'] if result else None
 
 
 def enqueue_pending_prioritization(chat_id: int, task_text: str) -> int:
@@ -67,17 +71,19 @@ def enqueue_pending_prioritization(chat_id: int, task_text: str) -> int:
         cur.execute(
             """
             INSERT INTO pending_prioritization (chat_id, task_text)
-            VALUES (?, ?)
+            VALUES (%s, %s)
+            RETURNING id
             """,
             (chat_id, task_text),
         )
-        return cur.lastrowid
+        result = cur.fetchone()
+        return result['id'] if result else None
 
 
 def set_pending_priority(item_id: int, priority: str) -> None:
     with db_cursor() as cur:
         cur.execute(
-            "UPDATE pending_prioritization SET selected_priority = ? WHERE id = ?",
+            "UPDATE pending_prioritization SET selected_priority = %s WHERE id = %s",
             (priority, item_id),
         )
 
@@ -86,20 +92,20 @@ def update_pending_task_text(item_id: int, new_task_text: str) -> None:
     """Update the task text for a pending prioritization item."""
     with db_cursor() as cur:
         cur.execute(
-            "UPDATE pending_prioritization SET task_text = ? WHERE id = ?",
+            "UPDATE pending_prioritization SET task_text = %s WHERE id = %s",
             (new_task_text, item_id),
         )
 
 
 def delete_pending(item_id: int) -> None:
     with db_cursor() as cur:
-        cur.execute("DELETE FROM pending_prioritization WHERE id = ?", (item_id,))
+        cur.execute("DELETE FROM pending_prioritization WHERE id = %s", (item_id,))
 
 
 def get_pending_for_chat(chat_id: int) -> List[dict]:
     with db_cursor() as cur:
         cur.execute(
-            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE chat_id = ? ORDER BY id ASC",
+            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE chat_id = %s ORDER BY id ASC",
             (chat_id,),
         )
         rows = cur.fetchall()
@@ -109,7 +115,7 @@ def get_pending_for_chat(chat_id: int) -> List[dict]:
 def get_pending_by_id(item_id: int) -> Optional[dict]:
     with db_cursor() as cur:
         cur.execute(
-            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE id = ?",
+            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE id = %s",
             (item_id,),
         )
         row = cur.fetchone()
@@ -123,7 +129,7 @@ def get_processed_task_by_text(chat_id: int, task_text: str) -> Optional[dict]:
     """
     with db_cursor() as cur:
         cur.execute(
-            "SELECT id, chat_id, task_text, source_messages, processing_timestamp, created_date FROM processed_tasks WHERE chat_id = ? AND task_text = ? ORDER BY processing_timestamp DESC LIMIT 1",
+            "SELECT id, chat_id, task_text, source_messages, processing_timestamp, created_date FROM processed_tasks WHERE chat_id = %s AND task_text = %s ORDER BY processing_timestamp DESC LIMIT 1",
             (chat_id, task_text),
         )
         row = cur.fetchone()
@@ -137,7 +143,7 @@ def delete_processed_tasks_by_text(chat_id: int, task_text: str) -> int:
     """
     with db_cursor() as cur:
         cur.execute(
-            "DELETE FROM processed_tasks WHERE chat_id = ? AND task_text = ?",
+            "DELETE FROM processed_tasks WHERE chat_id = %s AND task_text = %s",
             (chat_id, task_text),
         )
         return cur.rowcount
@@ -147,7 +153,7 @@ def get_pending_for_chat(chat_id: int) -> List[dict]:
     # duplicate stub removed; real implementation exists above
     with db_cursor() as cur:
         cur.execute(
-            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE chat_id = ? ORDER BY id ASC",
+            "SELECT id, chat_id, task_text, selected_priority, created_at FROM pending_prioritization WHERE chat_id = %s ORDER BY id ASC",
             (chat_id,),
         )
         rows = cur.fetchall()
@@ -168,7 +174,7 @@ def save_raw_message(
         cur.execute(
             """
             INSERT INTO raw_messages (chat_id, message_id, client_username, client_first_name, message_text, timestamp, is_processed)
-            VALUES (?, ?, ?, ?, ?, ?, 0)
+            VALUES (%s, %s, %s, %s, %s, %s, 0)
             """,
             (chat_id, message_id, client_username, client_first_name, message_text, ts.isoformat()),
         )
@@ -181,7 +187,7 @@ def get_tasks_by_date(chat_id: int, date_str: str) -> List[dict]:
             """
             SELECT id, chat_id, task_text, source_messages, processing_timestamp, created_date
             FROM processed_tasks
-            WHERE chat_id = ? AND created_date = ?
+            WHERE chat_id = %s AND created_date = %s
             ORDER BY processing_timestamp ASC
             """,
             (chat_id, date_str),
@@ -196,7 +202,7 @@ def get_all_tasks(chat_id: int) -> List[dict]:
             """
             SELECT id, chat_id, task_text, source_messages, processing_timestamp, created_date
             FROM processed_tasks
-            WHERE chat_id = ?
+            WHERE chat_id = %s
             ORDER BY processing_timestamp DESC
             """,
             (chat_id,),
@@ -208,7 +214,7 @@ def get_all_tasks(chat_id: int) -> List[dict]:
 def get_total_tasks_count(chat_id: int) -> int:
     with db_cursor() as cur:
         cur.execute(
-            "SELECT COUNT(1) FROM processed_tasks WHERE chat_id = ?",
+            "SELECT COUNT(1) FROM processed_tasks WHERE chat_id = %s",
             (chat_id,),
         )
         (count,) = cur.fetchone()
@@ -223,11 +229,11 @@ def is_staff_member(username: Optional[str], user_id: Optional[int]) -> bool:
         return True
     with db_cursor() as cur:
         if username:
-            cur.execute("SELECT 1 FROM staff_members WHERE username = ? LIMIT 1", (username,))
+            cur.execute("SELECT 1 FROM staff_members WHERE username = %s LIMIT 1", (username,))
             if cur.fetchone():
                 return True
         if user_id:
-            cur.execute("SELECT 1 FROM staff_members WHERE user_id = ? LIMIT 1", (user_id,))
+            cur.execute("SELECT 1 FROM staff_members WHERE user_id = %s LIMIT 1", (user_id,))
             if cur.fetchone():
                 return True
     return False
@@ -257,7 +263,7 @@ def get_unprocessed_messages_last_hour(chat_id: int, now_utc: Optional[datetime]
             """
             SELECT id, chat_id, message_id, client_username, client_first_name, message_text, timestamp
             FROM raw_messages
-            WHERE chat_id = ? AND is_processed = 0 AND timestamp >= ? AND timestamp <= ?
+            WHERE chat_id = %s AND is_processed = 0 AND timestamp >= %s AND timestamp <= %s
             ORDER BY timestamp ASC
             """,
             (chat_id, since.isoformat(), now.isoformat()),
@@ -274,7 +280,7 @@ def get_chats_with_unprocessed_messages_last_hour(now_utc: Optional[datetime] = 
             """
             SELECT DISTINCT chat_id
             FROM raw_messages
-            WHERE is_processed = 0 AND timestamp >= ? AND timestamp <= ?
+            WHERE is_processed = 0 AND timestamp >= %s AND timestamp <= %s
             """,
             (since.isoformat(), now.isoformat()),
         )
@@ -292,7 +298,7 @@ def get_unprocessed_messages_between(
             """
             SELECT id, chat_id, message_id, client_username, client_first_name, message_text, timestamp
             FROM raw_messages
-            WHERE chat_id = ? AND is_processed = 0 AND timestamp >= ? AND timestamp <= ?
+            WHERE chat_id = %s AND is_processed = 0 AND timestamp >= %s AND timestamp <= %s
             ORDER BY timestamp ASC
             """,
             (chat_id, since_utc.isoformat(), until_utc.isoformat()),

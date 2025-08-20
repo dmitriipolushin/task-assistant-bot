@@ -1,70 +1,40 @@
-import logging
 import os
 from dataclasses import dataclass
 
-from dotenv import load_dotenv
 
-
-@dataclass(frozen=True)
+@dataclass
 class Settings:
-    bot_token: str
-    openai_api_key: str
-    openai_base_url: str
-    gpt_model: str
-    timezone: str
-    daily_report_time: str
-    database_path: str
-    gsheet_spreadsheet_id: str | None
-    gsheet_worksheet_name: str | None
-    gsheet_tasks_worksheet_name: str | None
-    google_service_account_json_path: str | None
+    # Bot settings
+    bot_token: str = os.getenv("BOT_TOKEN", "")
+    
+    # OpenAI settings
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    
+    # Timezone settings
+    timezone: str = os.getenv("TIMEZONE", "Europe/Moscow")
+    daily_report_time: str = os.getenv("DAILY_REPORT_TIME", "09:00")
+    
+    # Database settings (PostgreSQL)
+    database_url: str = os.getenv("DATABASE_URL", "")
+    database_host: str = os.getenv("DB_HOST", "localhost")
+    database_port: int = int(os.getenv("DB_PORT", "5432"))
+    database_name: str = os.getenv("DB_NAME", "tasktracker")
+    database_user: str = os.getenv("DB_USER", "postgres")
+    database_password: str = os.getenv("DB_PASSWORD", "")
+    
+    # Google Sheets settings
+    gsheet_worksheet_name: str = os.getenv("GSHEET_WORKSHEET_NAME", "")
+    gsheet_tasks_worksheet_name: str = os.getenv("GSHEET_TASKS_WORKSHEET_NAME", "")
+    
+    @property
+    def database_connection_string(self) -> str:
+        """Generate PostgreSQL connection string"""
+        if self.database_url:
+            return self.database_url
+        return f"postgresql://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}"
 
 
-def load_settings() -> Settings:
-    load_dotenv()
-
-    bot_token = os.getenv("BOT_TOKEN")
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    openai_base_url = os.getenv("OPENAI_BASE_URL", "https://llm.swe.along.pw")
-    gpt_model = os.getenv("GPT_MODEL")
-    timezone = os.getenv("TIMEZONE", "Europe/Moscow")
-    daily_report_time = os.getenv("DAILY_REPORT_TIME", "09:00")
-    database_path = os.getenv("DATABASE_PATH", os.path.join(".", "data", "bot.db"))
-    gsheet_spreadsheet_id = os.getenv("GSHEET_SPREADSHEET_ID")
-    gsheet_worksheet_name = os.getenv("GSHEET_WORKSHEET_NAME", "Tasks")
-    gsheet_tasks_worksheet_name = os.getenv("GSHEET_TASKS_WORKSHEET_NAME", "Tasks")
-    google_service_account_json_path = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_PATH")
-
-    missing = []
-    if not bot_token:
-        missing.append("BOT_TOKEN")
-    if not openai_api_key:
-        missing.append("OPENAI_API_KEY")
-    if missing:
-        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
-
-    # Ensure data directory exists
-    try:
-        os.makedirs(os.path.dirname(database_path), exist_ok=True)
-    except Exception as exc:
-        logging.getLogger(__name__).warning("Failed to ensure database directory exists: %s", exc)
-
-    return Settings(
-        bot_token=bot_token,
-        openai_api_key=openai_api_key,
-        openai_base_url=openai_base_url,
-        gpt_model=gpt_model,
-        timezone=timezone,
-        daily_report_time=daily_report_time,
-        database_path=database_path,
-        gsheet_spreadsheet_id=gsheet_spreadsheet_id,
-        gsheet_worksheet_name=gsheet_worksheet_name,
-        gsheet_tasks_worksheet_name=gsheet_tasks_worksheet_name,
-        google_service_account_json_path=google_service_account_json_path,
-    )
-
-
-SETTINGS = load_settings()
+SETTINGS = Settings()
 
 
 
