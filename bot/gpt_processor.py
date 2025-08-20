@@ -45,11 +45,19 @@ def _parse_tasks_from_output(text: str) -> List[str]:
 
 
 def _create_openai_client() -> OpenAI:
-    return OpenAI(api_key=SETTINGS.openai_api_key)
+    try:
+        return OpenAI(api_key=SETTINGS.openai_api_key)
+    except Exception as e:
+        LOGGER.error("Failed to create OpenAI client: %s", e)
+        raise RuntimeError(f"OpenAI client initialization failed: {e}")
 
 
 async def process_messages_batch_with_gpt(messages_list: Sequence[dict], timeout_seconds: int = 60) -> List[str]:
-    client = _create_openai_client()
+    try:
+        client = _create_openai_client()
+    except Exception as e:
+        LOGGER.error("Failed to initialize OpenAI client: %s", e)
+        raise RuntimeError(f"OpenAI client initialization failed: {e}")
     # Prepare prompt
     from utils.formatters import format_messages_for_processing
 
