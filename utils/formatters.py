@@ -14,20 +14,6 @@ def _format_dt(dt_str: str) -> str:
         return dt_str
 
 
-def format_daily_report(chat_id: int, date: str, tasks: Sequence[dict], total_count: int) -> str:
-    lines: List[str] = [f"📋 Задачи за день ({date}):"]
-    if not tasks:
-        lines.append("Нет задач за указанный день")
-    for idx, t in enumerate(tasks, start=1):
-        time_str = _format_dt(t.get("processing_timestamp", ""))[-5:]  # HH:MM
-        task_text = t.get("task_text", "")
-        lines.append(f"{idx}. [{time_str}] Задача: \"{task_text}\"")
-    lines.append("")
-    lines.append(f"📊 Всего активных задач: {total_count}")
-    result = "\n".join(lines)
-    return result[:TELEGRAM_MESSAGE_LIMIT]
-
-
 def format_tasks_list(tasks: Sequence[dict], page: int = 1, page_size: int = 20) -> str:
     if page < 1:
         page = 1

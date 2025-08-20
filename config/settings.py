@@ -12,7 +12,6 @@ class Settings:
     
     # Timezone settings
     timezone: str = os.getenv("TIMEZONE", "Europe/Moscow")
-    daily_report_time: str = os.getenv("DAILY_REPORT_TIME", "09:00")
     
     # Database settings (PostgreSQL)
     database_url: str = os.getenv("DATABASE_URL", "")
