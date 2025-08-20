@@ -217,8 +217,8 @@ def get_total_tasks_count(chat_id: int) -> int:
             "SELECT COUNT(1) FROM processed_tasks WHERE chat_id = %s",
             (chat_id,),
         )
-        (count,) = cur.fetchone()
-        return int(count)
+        result = cur.fetchone()
+        return int(result['count']) if result else 0
 
 
 def is_staff_member(username: Optional[str], user_id: Optional[int]) -> bool:
@@ -252,7 +252,7 @@ def get_all_chat_ids() -> List[int]:
             """
         )
         rows = cur.fetchall()
-        return [int(r[0]) for r in rows]
+        return [int(r['chat_id']) for r in rows]
 
 
 def get_unprocessed_messages_last_hour(chat_id: int, now_utc: Optional[datetime] = None) -> List[dict]:
@@ -285,7 +285,7 @@ def get_chats_with_unprocessed_messages_last_hour(now_utc: Optional[datetime] = 
             (since.isoformat(), now.isoformat()),
         )
         rows = cur.fetchall()
-        return [int(r[0]) for r in rows]
+        return [int(r['chat_id']) for r in rows]
 
 
 def get_unprocessed_messages_between(
