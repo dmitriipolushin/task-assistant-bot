@@ -11,6 +11,7 @@ from config.settings import SETTINGS
 from database.operations import (
     get_chats_with_unprocessed_messages_last_hour,
     get_unprocessed_messages_between,
+    get_all_messages_between,
     get_unprocessed_messages_last_hour,
     save_processed_task_batch,
     enqueue_pending_prioritization,
@@ -87,7 +88,9 @@ async def process_messages_hourly(application: Application) -> None:
 
 
 async def process_chat_messages_range(application: Application, chat_id: int, since_utc: datetime, until_utc: datetime):
-    messages = get_unprocessed_messages_between(chat_id, since_utc, until_utc)
+    # Для команды /parse используем get_all_messages_between (игнорирует is_processed)
+    # Для обычной обработки используем get_unprocessed_messages_between
+    messages = get_all_messages_between(chat_id, since_utc, until_utc)
     if not messages:
         return 0, 0
     try:

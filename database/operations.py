@@ -307,6 +307,26 @@ def get_unprocessed_messages_between(
         return [dict(r) for r in rows]
 
 
+def get_all_messages_between(
+    chat_id: int,
+    since_utc: datetime,
+    until_utc: datetime,
+) -> List[dict]:
+    """Get ALL messages in time range, ignoring is_processed flag (for /parse command)"""
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, chat_id, message_id, client_username, client_first_name, message_text, timestamp
+            FROM raw_messages
+            WHERE chat_id = %s AND timestamp >= %s AND timestamp <= %s
+            ORDER BY timestamp ASC
+            """,
+            (chat_id, since_utc.isoformat(), until_utc.isoformat()),
+        )
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+
+
 def mark_messages_processed(message_ids: Iterable[int]) -> int:
     ids = list(message_ids)
     if not ids:
