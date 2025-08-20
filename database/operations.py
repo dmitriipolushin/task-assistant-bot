@@ -174,7 +174,7 @@ def save_raw_message(
         cur.execute(
             """
             INSERT INTO raw_messages (chat_id, message_id, client_username, client_first_name, message_text, timestamp, is_processed)
-            VALUES (%s, %s, %s, %s, %s, %s, 0)
+            VALUES (%s, %s, %s, %s, %s, %s, FALSE)
             """,
             (chat_id, message_id, client_username, client_first_name, message_text, ts.isoformat()),
         )
@@ -263,7 +263,7 @@ def get_unprocessed_messages_last_hour(chat_id: int, now_utc: Optional[datetime]
             """
             SELECT id, chat_id, message_id, client_username, client_first_name, message_text, timestamp
             FROM raw_messages
-            WHERE chat_id = %s AND is_processed = 0 AND timestamp >= %s AND timestamp <= %s
+            WHERE chat_id = %s AND is_processed = FALSE AND timestamp >= %s AND timestamp <= %s
             ORDER BY timestamp ASC
             """,
             (chat_id, since.isoformat(), now.isoformat()),
@@ -280,7 +280,7 @@ def get_chats_with_unprocessed_messages_last_hour(now_utc: Optional[datetime] = 
             """
             SELECT DISTINCT chat_id
             FROM raw_messages
-            WHERE is_processed = 0 AND timestamp >= %s AND timestamp <= %s
+            WHERE is_processed = FALSE AND timestamp >= %s AND timestamp <= %s
             """,
             (since.isoformat(), now.isoformat()),
         )
@@ -298,7 +298,7 @@ def get_unprocessed_messages_between(
             """
             SELECT id, chat_id, message_id, client_username, client_first_name, message_text, timestamp
             FROM raw_messages
-            WHERE chat_id = %s AND is_processed = 0 AND timestamp >= %s AND timestamp <= %s
+            WHERE chat_id = %s AND is_processed = FALSE AND timestamp >= %s AND timestamp <= %s
             ORDER BY timestamp ASC
             """,
             (chat_id, since_utc.isoformat(), until_utc.isoformat()),
@@ -311,10 +311,10 @@ def mark_messages_processed(message_ids: Iterable[int]) -> int:
     ids = list(message_ids)
     if not ids:
         return 0
-    qmarks = ",".join(["?"] * len(ids))
+    qmarks = ",".join(["%s"] * len(ids))
     with db_cursor() as cur:
         cur.execute(
-            f"UPDATE raw_messages SET is_processed = 1 WHERE id IN ({qmarks})",
+            f"UPDATE raw_messages SET is_processed = TRUE WHERE id IN ({qmarks})",
             ids,
         )
         return cur.rowcount
