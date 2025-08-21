@@ -18,6 +18,14 @@ LOGGER = logging.getLogger(__name__)
 async def on_error(update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logging.getLogger(__name__).exception("Update caused error: %s", context.error)
 
+
+async def start_scheduler(application):
+    """Start the scheduler after the application has access to event loop"""
+    from bot.scheduler import SCHEDULER
+    if SCHEDULER and not SCHEDULER.running:
+        SCHEDULER.start()
+        LOGGER.info("Scheduler started successfully with application")
+
 def main() -> None:
     LOGGER.info("Starting Telegram TaskTracker Bot")
     initialize_database()
@@ -48,9 +56,10 @@ def main() -> None:
     # Setup schedulers before starting the application
     scheduler = setup_schedulers(application)
     
-    # Start the scheduler after application is created
-    scheduler.start()
-    LOGGER.info("Scheduler started successfully")
+    # Add post_init callback to start scheduler when application is ready
+    application.post_init = start_scheduler
+    
+    LOGGER.info("Scheduler configured, will start with application")
 
     # run_polling is synchronous and manages lifecycle
     application.run_polling()

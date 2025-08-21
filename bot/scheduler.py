@@ -29,11 +29,13 @@ def setup_schedulers(application: Application) -> AsyncIOScheduler:
     global SCHEDULER
     if SCHEDULER is not None and SCHEDULER.running:
         return SCHEDULER
+    
     try:
         from zoneinfo import ZoneInfo
         tzinfo = ZoneInfo(SETTINGS.timezone)
     except Exception:
         tzinfo = SETTINGS.timezone  # fallback, APScheduler may resolve
+    
     scheduler = AsyncIOScheduler(timezone=tzinfo)
 
     # Hourly processing at minute 0
@@ -47,10 +49,10 @@ def setup_schedulers(application: Application) -> AsyncIOScheduler:
         replace_existing=True,
     )
 
-    # Don't start the scheduler here - let the application manage the event loop
-    # scheduler.start()  # This was causing the event loop conflict
-    LOGGER.info("Schedulers configured (will start when application starts)")
+    # Store the scheduler globally but don't start it yet
+    # It will be started automatically when the application gets access to event loop
     SCHEDULER = scheduler
+    LOGGER.info("Schedulers configured (will start automatically with application)")
     return scheduler
 
 
