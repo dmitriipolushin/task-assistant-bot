@@ -25,7 +25,7 @@ LOGGER = logging.getLogger(__name__)
 SCHEDULER: AsyncIOScheduler | None = None
 
 
-async def setup_schedulers(application: Application) -> AsyncIOScheduler:
+def setup_schedulers(application: Application) -> AsyncIOScheduler:
     global SCHEDULER
     if SCHEDULER is not None and SCHEDULER.running:
         return SCHEDULER
@@ -47,8 +47,9 @@ async def setup_schedulers(application: Application) -> AsyncIOScheduler:
         replace_existing=True,
     )
 
-    scheduler.start()
-    LOGGER.info("Schedulers configured and started")
+    # Don't start the scheduler here - let the application manage the event loop
+    # scheduler.start()  # This was causing the event loop conflict
+    LOGGER.info("Schedulers configured (will start when application starts)")
     SCHEDULER = scheduler
     return scheduler
 
