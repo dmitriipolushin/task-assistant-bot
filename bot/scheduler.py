@@ -25,6 +25,17 @@ LOGGER = logging.getLogger(__name__)
 SCHEDULER: AsyncIOScheduler | None = None
 
 
+def _truncate(text: str, limit: int = 160) -> str:
+    if not isinstance(text, str):
+        return ""
+    text = text.replace("\n", " ")
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _message_preview(msg: dict) -> str:
+    return f"id={msg.get('id')}, mid={msg.get('message_id')}, ts={msg.get('timestamp')} | {_truncate(msg.get('message_text', ''))}"
+
+
 def setup_schedulers(application: Application) -> AsyncIOScheduler:
     global SCHEDULER
     if SCHEDULER is not None and SCHEDULER.running:
@@ -58,10 +69,17 @@ def setup_schedulers(application: Application) -> AsyncIOScheduler:
 
 async def process_chat_messages_now(application: Application, chat_id: int) -> int:
     now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=1)
+    LOGGER.info("Hourly window for chat %s: %s → %s", chat_id, since.isoformat(), now.isoformat())
     messages = get_unprocessed_messages_last_hour(chat_id, now)
     if not messages:
+        LOGGER.info("No messages to process for chat %s in the last hour", chat_id)
         return 0
+    LOGGER.info("Fetched %s messages for chat %s", len(messages), chat_id)
+    for preview in messages[:5]:
+        LOGGER.info("Message: %s", _message_preview(preview))
     try:
+        LOGGER.info("Sending %s messages to GPT for chat %s", len(messages), chat_id)
         tasks = await process_messages_batch_with_gpt(messages)
     except Exception:
         LOGGER.exception("GPT processing failed for chat %s", chat_id)
@@ -70,6 +88,7 @@ async def process_chat_messages_now(application: Application, chat_id: int) -> i
     # Сохраняем задачи и ставим в очередь приоритизации
     # НЕ помечаем сообщения как обработанные - это произойдет только после выбора приоритета
     for t in tasks:
+        LOGGER.info("Task extracted: %s", _truncate(t))
         save_processed_task_batch(chat_id=chat_id, task_text=t, source_message_ids=[m["id"] for m in messages])
         pending_id = enqueue_pending_prioritization(chat_id, t)
         await _prompt_priority_selection(application, chat_id, pending_id, t)
@@ -81,7 +100,9 @@ async def process_chat_messages_now(application: Application, chat_id: int) -> i
 async def process_messages_hourly(application: Application) -> None:
     chat_ids = get_chats_with_unprocessed_messages_last_hour()
     if not chat_ids:
+        LOGGER.info("Hourly run: no chats with unprocessed messages in the last hour")
         return
+    LOGGER.info("Hourly run: %s chat(s) to process: %s", len(chat_ids), ", ".join(str(c) for c in chat_ids[:10]))
     for chat_id in chat_ids:
         try:
             await process_chat_messages_now(application, chat_id)
@@ -93,10 +114,16 @@ async def process_messages_hourly(application: Application) -> None:
 async def process_chat_messages_range(application: Application, chat_id: int, since_utc: datetime, until_utc: datetime):
     # Для команды /parse используем get_all_messages_between (игнорирует is_processed)
     # Для обычной обработки используем get_unprocessed_messages_between
+    LOGGER.info("/parse window for chat %s: %s → %s", chat_id, since_utc.isoformat(), until_utc.isoformat())
     messages = get_all_messages_between(chat_id, since_utc, until_utc)
     if not messages:
+        LOGGER.info("/parse: no messages found for chat %s in the specified window", chat_id)
         return 0, 0
+    LOGGER.info("/parse: fetched %s messages for chat %s", len(messages), chat_id)
+    for preview in messages[:10]:
+        LOGGER.info("/parse message: %s", _message_preview(preview))
     try:
+        LOGGER.info("/parse: sending %s messages to GPT for chat %s", len(messages), chat_id)
         tasks = await process_messages_batch_with_gpt(messages)
     except Exception:
         LOGGER.exception("GPT processing failed for chat %s in range", chat_id)
@@ -105,6 +132,7 @@ async def process_chat_messages_range(application: Application, chat_id: int, si
     # Сохраняем задачи и ставим в очередь приоритизации
     # НЕ помечаем сообщения как обработанные - это произойдет только после выбора приоритета
     for t in tasks:
+        LOGGER.info("/parse task extracted: %s", _truncate(t))
         save_processed_task_batch(chat_id=chat_id, task_text=t, source_message_ids=[m["id"] for m in messages])
         pending_id = enqueue_pending_prioritization(chat_id, t)
         await _prompt_priority_selection(application, chat_id, pending_id, t)
