@@ -46,6 +46,11 @@ def _parse_tasks_from_output(text: str) -> List[str]:
 
 def _create_openai_client() -> OpenAI:
     try:
+        if not SETTINGS.openai_api_key:
+            raise ValueError("OpenAI API key is not configured")
+        if not SETTINGS.gpt_model:
+            raise ValueError("GPT model is not configured")
+        LOGGER.info("Creating OpenAI client with model: %s", SETTINGS.gpt_model)
         return OpenAI(api_key=SETTINGS.openai_api_key)
     except Exception as e:
         LOGGER.error("Failed to create OpenAI client: %s", e)

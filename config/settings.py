@@ -9,6 +9,7 @@ class Settings:
     
     # OpenAI settings
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    gpt_model: str = os.getenv("GPT_MODEL", "dima/gpt-4o")
     
     # Timezone settings
     timezone: str = os.getenv("TIMEZONE", "Europe/Moscow")
@@ -25,6 +26,15 @@ class Settings:
     gsheet_worksheet_name: str = os.getenv("GSHEET_WORKSHEET_NAME", "")
     gsheet_tasks_worksheet_name: str = os.getenv("GSHEET_TASKS_WORKSHEET_NAME", "")
     
+    def validate(self) -> None:
+        """Validate that required settings are configured"""
+        if not self.bot_token:
+            raise ValueError("BOT_TOKEN environment variable is required")
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+        if not self.gpt_model:
+            raise ValueError("GPT_MODEL environment variable is required")
+    
     @property
     def database_connection_string(self) -> str:
         """Generate PostgreSQL connection string"""
@@ -34,6 +44,14 @@ class Settings:
 
 
 SETTINGS = Settings()
+
+# Validate settings on import
+try:
+    SETTINGS.validate()
+except ValueError as e:
+    import logging
+    logging.error("Configuration error: %s", e)
+    raise
 
 
 

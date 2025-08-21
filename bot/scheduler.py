@@ -44,7 +44,9 @@ def setup_schedulers(application: Application) -> AsyncIOScheduler:
     try:
         from zoneinfo import ZoneInfo
         tzinfo = ZoneInfo(SETTINGS.timezone)
-    except Exception:
+        LOGGER.info("Using timezone: %s", SETTINGS.timezone)
+    except Exception as e:
+        LOGGER.warning("Failed to parse timezone %s, using fallback: %s", SETTINGS.timezone, e)
         tzinfo = SETTINGS.timezone  # fallback, APScheduler may resolve
     
     scheduler = AsyncIOScheduler(timezone=tzinfo)
@@ -81,8 +83,8 @@ async def process_chat_messages_now(application: Application, chat_id: int) -> i
     try:
         LOGGER.info("Sending %s messages to GPT for chat %s", len(messages), chat_id)
         tasks = await process_messages_batch_with_gpt(messages)
-    except Exception:
-        LOGGER.exception("GPT processing failed for chat %s", chat_id)
+    except Exception as e:
+        LOGGER.exception("GPT processing failed for chat %s: %s", chat_id, e)
         return 0
     
     # Сохраняем задачи и ставим в очередь приоритизации
@@ -107,8 +109,8 @@ async def process_messages_hourly(application: Application) -> None:
         try:
             await process_chat_messages_now(application, chat_id)
             await asyncio.sleep(0)  # yield control
-        except Exception:
-            LOGGER.exception("Failed to process hourly messages for chat %s", chat_id)
+        except Exception as e:
+            LOGGER.exception("Failed to process hourly messages for chat %s: %s", chat_id, e)
 
 
 async def process_chat_messages_range(application: Application, chat_id: int, since_utc: datetime, until_utc: datetime):
@@ -125,8 +127,8 @@ async def process_chat_messages_range(application: Application, chat_id: int, si
     try:
         LOGGER.info("/parse: sending %s messages to GPT for chat %s", len(messages), chat_id)
         tasks = await process_messages_batch_with_gpt(messages)
-    except Exception:
-        LOGGER.exception("GPT processing failed for chat %s in range", chat_id)
+    except Exception as e:
+        LOGGER.exception("GPT processing failed for chat %s in range: %s", chat_id, e)
         return 0, len(messages)
     
     # Сохраняем задачи и ставим в очередь приоритизации
