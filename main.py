@@ -18,7 +18,7 @@ LOGGER = logging.getLogger(__name__)
 async def on_error(update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logging.getLogger(__name__).exception("Update caused error: %s", context.error)
 
-def main() -> None:
+async def main() -> None:
     LOGGER.info("Starting Telegram TaskTracker Bot")
     initialize_database()
 
@@ -45,14 +45,21 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(handle_delete_task_callback, pattern=r"^del:"))
     application.add_error_handler(on_error)
 
-    setup_schedulers(application)
+    # Setup schedulers in async context
+    await setup_schedulers(application)
 
     # run_polling is synchronous and manages lifecycle
     application.run_polling()
     LOGGER.info("Bot stopped")
 
 
+def run_bot() -> None:
+    """Wrapper to run async main function"""
+    import asyncio
+    asyncio.run(main())
+
+
 if __name__ == "__main__":
-    main()
+    run_bot()
 
 

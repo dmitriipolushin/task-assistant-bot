@@ -25,7 +25,7 @@ LOGGER = logging.getLogger(__name__)
 SCHEDULER: AsyncIOScheduler | None = None
 
 
-def setup_schedulers(application: Application) -> AsyncIOScheduler:
+async def setup_schedulers(application: Application) -> AsyncIOScheduler:
     global SCHEDULER
     if SCHEDULER is not None and SCHEDULER.running:
         return SCHEDULER
