@@ -99,6 +99,10 @@ async def process_messages_batch_with_gpt(messages_list: Sequence[dict], timeout
                 await asyncio.sleep(delay)
 
     content = await asyncio.wait_for(_call_api_with_retry(), timeout=timeout_seconds)
+    
+    # Логируем ответ GPT
+    LOGGER.info("GPT response: %s", content)
+    
     tasks = _parse_tasks_from_output(content)
     LOGGER.info("Parsed %s tasks from GPT output", len(tasks))
     return tasks

@@ -82,6 +82,7 @@ async def process_chat_messages_now(application: Application, chat_id: int) -> i
         LOGGER.info("Message: %s", _message_preview(preview))
     try:
         LOGGER.info("Sending %s messages to GPT for chat %s", len(messages), chat_id)
+        LOGGER.info("Messages to process: %s", [_message_preview(msg) for msg in messages])
         tasks = await process_messages_batch_with_gpt(messages)
     except Exception as e:
         LOGGER.exception("GPT processing failed for chat %s: %s", chat_id, e)
@@ -126,6 +127,7 @@ async def process_chat_messages_range(application: Application, chat_id: int, si
         LOGGER.info("/parse message: %s", _message_preview(preview))
     try:
         LOGGER.info("/parse: sending %s messages to GPT for chat %s", len(messages), chat_id)
+        LOGGER.info("/parse messages to process: %s", [_message_preview(msg) for msg in messages])
         tasks = await process_messages_batch_with_gpt(messages)
     except Exception as e:
         LOGGER.exception("GPT processing failed for chat %s in range: %s", chat_id, e)
