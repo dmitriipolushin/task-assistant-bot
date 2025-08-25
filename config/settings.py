@@ -25,6 +25,8 @@ class Settings:
     # Google Sheets settings
     gsheet_worksheet_name: str = os.getenv("GSHEET_WORKSHEET_NAME", "")
     gsheet_tasks_worksheet_name: str = os.getenv("GSHEET_TASKS_WORKSHEET_NAME", "")
+    google_service_account_json_path: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_PATH", "")
+    gsheet_spreadsheet_id: str = os.getenv("GSHEET_SPREADSHEET_ID", "")
     
     def validate(self) -> None:
         """Validate that required settings are configured"""
@@ -34,6 +36,11 @@ class Settings:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         if not self.gpt_model:
             raise ValueError("GPT_MODEL environment variable is required")
+        
+        # Optional Google Sheets validation with warning
+        if not self.google_service_account_json_path or not self.gsheet_spreadsheet_id:
+            import logging
+            logging.warning("Google Sheets is not fully configured. Set GOOGLE_SERVICE_ACCOUNT_JSON_PATH and GSHEET_SPREADSHEET_ID in .env for Google Sheets functionality")
     
     @property
     def database_connection_string(self) -> str:

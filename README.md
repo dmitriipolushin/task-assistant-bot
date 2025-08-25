@@ -73,6 +73,8 @@ docker compose up --build
 - **Запись**: добавление строки происходит при выборе приоритета в инлайн‑кнопках. Формат записи: Проект (Calzen), Описание задачи, Приоритет.
 - **Лимит 10**: при превышении лимита «важных» (`Critical|Blocker|High`) бот автоматически понижает приоритет у последней задачи до `Medium`.
 
+**📖 Подробная инструкция по настройке**: [docs/google-sheets-setup.md](docs/google-sheets-setup.md)
+
 ### База данных (SQLite)
 - `raw_messages(id, chat_id, message_id, client_username, client_first_name, message_text, timestamp, is_processed)`
 - `processed_tasks(id, chat_id, task_text, source_messages(JSON), processing_timestamp, created_date)`

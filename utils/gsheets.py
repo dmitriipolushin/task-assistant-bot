@@ -18,7 +18,12 @@ ENG_HEADERS = ["Project", "Description", "Priority"]
 
 def _open_worksheet():
     if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
-        raise RuntimeError("Google Sheets is not configured. Set GOOGLE_SERVICE_ACCOUNT_JSON_PATH and GSHEET_SPREADSHEET_ID in .env")
+        missing_settings = []
+        if not SETTINGS.google_service_account_json_path:
+            missing_settings.append("GOOGLE_SERVICE_ACCOUNT_JSON_PATH")
+        if not SETTINGS.gsheet_spreadsheet_id:
+            missing_settings.append("GSHEET_SPREADSHEET_ID")
+        raise RuntimeError(f"Google Sheets is not configured. Missing: {', '.join(missing_settings)}. Set these environment variables in .env file")
     LOGGER.info("Opening Google Sheet id=%s", SETTINGS.gsheet_spreadsheet_id)
     # Build client from file path or from JSON string
     creds_path_or_json = SETTINGS.google_service_account_json_path
@@ -68,7 +73,12 @@ def _open_worksheet():
 def _open_tasks_worksheet():
     """Open the tasks worksheet specifically for task entries."""
     if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
-        raise RuntimeError("Google Sheets is not configured. Set GOOGLE_SERVICE_ACCOUNT_JSON_PATH and GSHEET_SPREADSHEET_ID in .env")
+        missing_settings = []
+        if not SETTINGS.google_service_account_json_path:
+            missing_settings.append("GOOGLE_SERVICE_ACCOUNT_JSON_PATH")
+        if not SETTINGS.gsheet_spreadsheet_id:
+            missing_settings.append("GSHEET_SPREADSHEET_ID")
+        raise RuntimeError(f"Google Sheets is not configured. Missing: {', '.join(missing_settings)}. Set these environment variables in .env file")
     LOGGER.info("Opening Google Sheet id=%s for tasks", SETTINGS.gsheet_spreadsheet_id)
     # Build client from file path or from JSON string
     creds_path_or_json = SETTINGS.google_service_account_json_path

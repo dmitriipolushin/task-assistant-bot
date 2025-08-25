@@ -210,24 +210,30 @@ async def handle_priority_callback(update: Update, context: ContextTypes.DEFAULT
     if priority.lower() in {"critical", "blocker", "high"}:
         try:
             from utils.gsheets import get_high_priority_tasks, format_tasks_message, is_high_priority_limit_exceeded
-            if is_high_priority_limit_exceeded():
-                # Превышен лимит - показываем сообщение с выбором действий
-                existing_tasks, _ = get_high_priority_tasks()
-                message_text = format_tasks_message(existing_tasks, item["task_text"])
-                
-                # Новые кнопки для выбора действия
-                kb = [
-                    [InlineKeyboardButton("Medium", callback_data=f"downgrade:{pending_id}:medium")],
-                    [InlineKeyboardButton("Low", callback_data=f"downgrade:{pending_id}:low")],
-                    [InlineKeyboardButton("Оставить высокий", callback_data=f"keep_high:{pending_id}")],
-                ]
-                
-                await query.edit_message_text(
-                    text=message_text,
-                    reply_markup=InlineKeyboardMarkup(kb)
-                )
-                LOGGER.info("High priority limit exceeded for pending_id=%s, showing downgrade options", pending_id)
-                return
+            from config.settings import SETTINGS
+            
+            # Check if Google Sheets is properly configured
+            if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
+                LOGGER.info("Google Sheets not configured, skipping high priority limit check")
+            else:
+                if is_high_priority_limit_exceeded():
+                    # Превышен лимит - показываем сообщение с выбором действий
+                    existing_tasks, _ = get_high_priority_tasks()
+                    message_text = format_tasks_message(existing_tasks, item["task_text"])
+                    
+                    # Новые кнопки для выбора действия
+                    kb = [
+                        [InlineKeyboardButton("Medium", callback_data=f"downgrade:{pending_id}:medium")],
+                        [InlineKeyboardButton("Low", callback_data=f"downgrade:{pending_id}:low")],
+                        [InlineKeyboardButton("Оставить высокий", callback_data=f"keep_high:{pending_id}")],
+                    ]
+                    
+                    await query.edit_message_text(
+                        text=message_text,
+                        reply_markup=InlineKeyboardMarkup(kb)
+                    )
+                    LOGGER.info("High priority limit exceeded for pending_id=%s, showing downgrade options", pending_id)
+                    return
         except Exception:
             LOGGER.exception("Failed to check high priority limit for pending_id=%s", pending_id)
             # При ошибке продолжаем как обычно
@@ -242,13 +248,19 @@ async def handle_priority_callback(update: Update, context: ContextTypes.DEFAULT
     cap_note: str | None = None
     try:
         from utils.gsheets import add_task_row, is_important_limit_exceeded
-        LOGGER.info("Appending to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
-        add_task_row(item["task_text"], priority)
-        # If selected priority is important, check cap of 10 and only notify
-        if priority.lower() in {"critical", "blocker", "high"}:
-            if is_important_limit_exceeded(10):
-                cap_note = "Превышен лимит срочных задач (Critical/Blocker/High > 10)"
-                LOGGER.info("Important cap exceeded; notifying in chat without modifying sheet")
+        from config.settings import SETTINGS
+        
+        # Check if Google Sheets is properly configured
+        if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
+            LOGGER.info("Google Sheets not configured, skipping task storage")
+        else:
+            LOGGER.info("Appending to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
+            add_task_row(item["task_text"], priority)
+            # If selected priority is important, check cap of 10 and only notify
+            if priority.lower() in {"critical", "blocker", "high"}:
+                if is_important_limit_exceeded(10):
+                    cap_note = "Превышен лимит срочных задач (Critical/Blocker/High > 10)"
+                    LOGGER.info("Important cap exceeded; notifying in chat without modifying sheet")
     except Exception:
         LOGGER.exception("Failed to append to Google Sheets or enforce cap")
 
@@ -328,8 +340,14 @@ async def handle_downgrade_callback(update: Update, context: ContextTypes.DEFAUL
     # Добавляем задачу в Google Sheets с пониженным приоритетом
     try:
         from utils.gsheets import add_task_row
-        LOGGER.info("Appending downgraded task to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
-        add_task_row(item["task_text"], priority)
+        from config.settings import SETTINGS
+        
+        # Check if Google Sheets is properly configured
+        if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
+            LOGGER.info("Google Sheets not configured, skipping downgraded task storage")
+        else:
+            LOGGER.info("Appending downgraded task to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
+            add_task_row(item["task_text"], priority)
     except Exception:
         LOGGER.exception("Failed to append downgraded task to Google Sheets")
 
