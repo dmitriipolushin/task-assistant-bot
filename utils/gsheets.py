@@ -12,8 +12,8 @@ from config.settings import SETTINGS
 LOGGER = logging.getLogger(__name__)
 
 
-RUS_HEADERS = ["Проект", "Описание", "Приоритет"]
-ENG_HEADERS = ["Project", "Description", "Priority"]
+RUS_HEADERS = ["Проект", "Описание", "Приоритет", "Контекст"]
+ENG_HEADERS = ["Project", "Description", "Priority", "Context"]
 
 
 def _open_worksheet():
@@ -186,6 +186,31 @@ def downgrade_row_to_medium(row_index: int) -> None:
     ws.update_cell(row_index, prio_idx, "Medium")
 
 
+def format_message_links(chat_id: int, message_ids: list) -> str:
+    """Format message IDs into clickable Telegram links.
+    
+    Args:
+        chat_id: Telegram chat ID
+        message_ids: List of message IDs
+        
+    Returns:
+        Formatted string with clickable links
+    """
+    if not message_ids:
+        return ""
+    
+    links = []
+    for msg_id in message_ids:
+        # Формируем ссылку вида: https://t.me/c/1234567890/123
+        # где 1234567890 - это chat_id, а 123 - message_id
+        # Для групповых чатов нужно убрать знак минус из chat_id
+        formatted_chat_id = str(chat_id).replace("-", "")
+        link = f"https://t.me/c/{formatted_chat_id}/{msg_id}"
+        links.append(link)
+    
+    return " | ".join(links)
+
+
 def add_task_row(
     title: str,
     priority: str,
@@ -194,21 +219,23 @@ def add_task_row(
     link: str | None = None,
     task_type: str | None = None,
     plan: str | None = None,
+    context: str | None = None,
 ) -> None:
     """Append a new task row to the tasks worksheet.
 
-    New format: Проект (Calzen), Описание, Приоритет
+    New format: Проект (Calzen), Описание, Приоритет, Контекст
     """
     ws = _open_tasks_worksheet()
     
-    # Always use Calzen as project, new format: Проект, Описание, Приоритет
+    # Always use Calzen as project, new format: Проект, Описание, Приоритет, Контекст
     values = [
         "Calzen",  # Проект
         title,     # Описание
         priority.capitalize(),  # Приоритет
+        context or "",  # Контекст (ссылки на сообщения)
     ]
     
-    LOGGER.info("Appending task row: project='Calzen' description='%s' priority='%s'", title, priority)
+    LOGGER.info("Appending task row: project='Calzen' description='%s' priority='%s' context='%s'", title, priority, context or "нет")
     ws.append_row(values)
 
 

@@ -254,8 +254,22 @@ async def handle_priority_callback(update: Update, context: ContextTypes.DEFAULT
         if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
             LOGGER.info("Google Sheets not configured, skipping task storage")
         else:
-            LOGGER.info("Appending to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
-            add_task_row(item["task_text"], priority)
+            # Получаем source_message_ids для формирования контекста
+            context = ""
+            try:
+                from database.operations import get_processed_task_by_text
+                task_info = get_processed_task_by_text(item["chat_id"], item["task_text"])
+                if task_info and task_info.get("source_messages"):
+                    import json
+                    source_ids = json.loads(task_info["source_messages"])
+                    if source_ids:
+                        from utils.gsheets import format_message_links
+                        context = format_message_links(item["chat_id"], source_ids)
+            except Exception:
+                LOGGER.warning("Failed to get source messages for context, proceeding without context")
+            
+            LOGGER.info("Appending to Google Sheets: title='%s' priority='%s' context='%s'", item.get("task_text"), priority, context or "нет")
+            add_task_row(item["task_text"], priority, context=context)
             # If selected priority is important, check cap of 10 and only notify
             if priority.lower() in {"critical", "blocker", "high"}:
                 if is_important_limit_exceeded(10):
@@ -346,8 +360,22 @@ async def handle_downgrade_callback(update: Update, context: ContextTypes.DEFAUL
         if not SETTINGS.google_service_account_json_path or not SETTINGS.gsheet_spreadsheet_id:
             LOGGER.info("Google Sheets not configured, skipping downgraded task storage")
         else:
-            LOGGER.info("Appending downgraded task to Google Sheets: title='%s' priority='%s'", item.get("task_text"), priority)
-            add_task_row(item["task_text"], priority)
+            # Получаем source_message_ids для формирования контекста
+            context = ""
+            try:
+                from database.operations import get_processed_task_by_text
+                task_info = get_processed_task_by_text(chat_id, item["task_text"])
+                if task_info and task_info.get("source_messages"):
+                    import json
+                    source_ids = json.loads(task_info["source_messages"])
+                    if source_ids:
+                        from utils.gsheets import format_message_links
+                        context = format_message_links(chat_id, source_ids)
+            except Exception:
+                LOGGER.warning("Failed to get source messages for context, proceeding without context")
+            
+            LOGGER.info("Appending downgraded task to Google Sheets: title='%s' priority='%s' context='%s'", item.get("task_text"), priority, context or "нет")
+            add_task_row(item["task_text"], priority, context=context)
     except Exception:
         LOGGER.exception("Failed to append downgraded task to Google Sheets")
 
